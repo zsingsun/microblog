@@ -1,19 +1,32 @@
 import json
 import requests
-from flask import current_app
+import hashlib
+import urllib
+import random
 from flask_babel import _
-
+from flask import current_app
 
 def translate(text, source_language, dest_language):
-    if 'MS_TRANSLATOR_KEY' not in current_app.config or \
-            not current_app.config['MS_TRANSLATOR_KEY']:
+    if 'BD_TRANSLATOR_KEY' not in current_app.config or \
+            not current_app.config['BD_TRANSLATOR_KEY']:
         return _('Error: the translation service is not configured.')
-    auth = {
-        'Ocp-Apim-Subscription-Key': current_app.config['MS_TRANSLATOR_KEY']}
-    r = requests.get('https://api.microsofttranslator.com/v2/Ajax.svc'
-                     '/Translate?text={}&from={}&to={}'.format(
-                         text, source_language, dest_language),
-                     headers=auth)
+    
+    app_id = current_app.config['BD_TRANSLATOR_APPID']
+    secret_key = current_app.config['BD_TRANSLATOR_KEY']
+
+    myurl = 'http://api.fanyi.baidu.com/api/trans/vip/translate'
+
+    fromLang = source_language
+    toLang = dest_language
+    salt = random.randint(32768, 65536)
+    sign = str(app_id) + text + str(salt) + secret_key
+    sign = hashlib.md5(sign.encode()).hexdigest()
+    
+    myurl = myurl + '?appid=' + str(app_id) + '&q=' + urllib.parse.quote(text) + '&from=' + fromLang + '&to=' + toLang + '&salt=' + str(
+salt) + '&sign=' + sign
+
+    r = requests.get(myurl)
     if r.status_code != 200:
         return _('Error: the translation service failed.')
-    return json.loads(r.content.decode('utf-8-sig'))
+    dst = json.loads(r.content.decode('utf-8-sig'))
+    return dst['trans_result'][0]['dst']
